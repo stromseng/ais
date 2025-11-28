@@ -1,4 +1,10 @@
-import { Effect, Console, Layer, Schema, pipe, Stream } from "effect";
+import { Effect, Console, Layer, Schema, JSONSchema } from "effect";
+import {
+    HttpClient,
+    HttpClientResponse,
+    HttpBody,
+    FetchHttpClient,
+} from "@effect/platform";
 import { Keychain } from "./src/keychain";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 
@@ -75,54 +81,42 @@ class CopilotError extends Schema.TaggedError<CopilotError>()("CopilotError", {
 }) {}
 
 export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
-    dependencies: [Keychain.Default],
+    dependencies: [Keychain.Default, FetchHttpClient.layer],
     effect: Effect.gen(function* () {
         const keychain = yield* Keychain;
+        const httpClient = yield* HttpClient.HttpClient;
+
+        // Create client that filters non-2xx responses
+        const httpClientOk = httpClient.pipe(HttpClient.filterStatusOk);
 
         // Get device code for OAuth
         const getDeviceCode = Effect.gen(function* () {
-            const response = yield* Effect.tryPromise({
-                try: () =>
-                    fetch(DEVICE_CODE_URL, {
-                        method: "POST",
-                        headers: {
-                            Accept: "application/json",
-                            "Content-Type": "application/json",
-                            "User-Agent": "GitHubCopilotChat/0.35.0",
-                        },
-                        body: JSON.stringify({
-                            client_id: CLIENT_ID,
-                            scope: "read:user",
-                        }),
+            const response = yield* httpClientOk
+                .post(DEVICE_CODE_URL, {
+                    headers: {
+                        Accept: "application/json",
+                        "Content-Type": "application/json",
+                        "User-Agent": "GitHubCopilotChat/0.35.0",
+                    },
+                    body: HttpBody.unsafeJson({
+                        client_id: CLIENT_ID,
+                        scope: "read:user",
                     }),
-                catch: (e) =>
-                    new CopilotError({
-                        message: `Failed to fetch device code: ${e}`,
-                    }),
-            });
+                })
+                .pipe(
+                    Effect.flatMap(
+                        HttpClientResponse.schemaBodyJson(DeviceCodeResponse)
+                    ),
+                    Effect.scoped,
+                    Effect.mapError(
+                        (e) =>
+                            new CopilotError({
+                                message: `Failed to get device code: ${e}`,
+                            })
+                    )
+                );
 
-            if (!response.ok) {
-                return yield* new CopilotError({
-                    message: `Device code request failed: ${response.status}`,
-                });
-            }
-
-            const json = yield* Effect.tryPromise({
-                try: () => response.json(),
-                catch: () =>
-                    new CopilotError({
-                        message: "Failed to parse device code response",
-                    }),
-            });
-
-            return yield* Schema.decodeUnknown(DeviceCodeResponse)(json).pipe(
-                Effect.mapError(
-                    () =>
-                        new CopilotError({
-                            message: "Invalid device code response schema",
-                        })
-                )
-            );
+            return response;
         });
 
         // Poll for access token
@@ -131,53 +125,45 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                 while (true) {
                     yield* Effect.sleep(`${interval} seconds`);
 
-                    const response = yield* Effect.tryPromise({
-                        try: () =>
-                            fetch(ACCESS_TOKEN_URL, {
-                                method: "POST",
-                                headers: {
-                                    Accept: "application/json",
-                                    "Content-Type": "application/json",
-                                    "User-Agent": "GitHubCopilotChat/0.35.0",
-                                },
-                                body: JSON.stringify({
-                                    client_id: CLIENT_ID,
-                                    device_code: deviceCode,
-                                    grant_type:
-                                        "urn:ietf:params:oauth:grant-type:device_code",
-                                }),
+                    const response = yield* httpClient
+                        .post(ACCESS_TOKEN_URL, {
+                            headers: {
+                                Accept: "application/json",
+                                "Content-Type": "application/json",
+                                "User-Agent": "GitHubCopilotChat/0.35.0",
+                            },
+                            body: HttpBody.unsafeJson({
+                                client_id: CLIENT_ID,
+                                device_code: deviceCode,
+                                grant_type:
+                                    "urn:ietf:params:oauth:grant-type:device_code",
                             }),
-                        catch: (e) =>
-                            new CopilotError({
-                                message: `Failed to poll access token: ${e}`,
-                            }),
-                    });
-
-                    if (!response.ok) {
-                        return yield* new CopilotError({
-                            message: `Access token request failed: ${response.status}`,
-                        });
-                    }
-
-                    const json = yield* Effect.tryPromise({
-                        try: () => response.json(),
-                        catch: () =>
-                            new CopilotError({
-                                message:
-                                    "Failed to parse access token response",
-                            }),
-                    });
+                        })
+                        .pipe(
+                            Effect.flatMap((res) => res.json),
+                            Effect.scoped,
+                            Effect.mapError(
+                                (e) =>
+                                    new CopilotError({
+                                        message: `Failed to poll access token: ${e}`,
+                                    })
+                            )
+                        );
 
                     // Check if we got the token
                     const tokenResult =
-                        Schema.decodeUnknownOption(AccessTokenResponse)(json);
+                        Schema.decodeUnknownOption(AccessTokenResponse)(
+                            response
+                        );
                     if (tokenResult._tag === "Some") {
                         return tokenResult.value;
                     }
 
                     // Check if still pending
                     const pendingResult =
-                        Schema.decodeUnknownOption(AccessTokenPending)(json);
+                        Schema.decodeUnknownOption(AccessTokenPending)(
+                            response
+                        );
                     if (pendingResult._tag === "Some") {
                         yield* Console.debug(
                             "Authorization pending, waiting..."
@@ -187,7 +173,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
 
                     // Check for error
                     const errorResult =
-                        Schema.decodeUnknownOption(AccessTokenError)(json);
+                        Schema.decodeUnknownOption(AccessTokenError)(response);
                     if (errorResult._tag === "Some") {
                         return yield* new CopilotError({
                             message: `OAuth error: ${errorResult.value.error}`,
@@ -257,46 +243,26 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
 
             yield* Console.debug("Fetching new Copilot API token...");
 
-            const response = yield* Effect.tryPromise({
-                try: () =>
-                    fetch(COPILOT_TOKEN_URL, {
-                        headers: {
-                            Accept: "application/json",
-                            Authorization: `Bearer ${refreshToken}`,
-                            ...HEADERS,
-                        },
-                    }),
-                catch: (e) =>
-                    new CopilotError({
-                        message: `Failed to fetch Copilot token: ${e}`,
-                    }),
-            });
-
-            if (!response.ok) {
-                const text = yield* Effect.tryPromise(() => response.text());
-                return yield* new CopilotError({
-                    message: `Copilot token request failed: ${response.status} - ${text}`,
-                });
-            }
-
-            const json = yield* Effect.tryPromise({
-                try: () => response.json(),
-                catch: () =>
-                    new CopilotError({
-                        message: "Failed to parse Copilot token response",
-                    }),
-            });
-
-            const tokenData = yield* Schema.decodeUnknown(CopilotTokenResponse)(
-                json
-            ).pipe(
-                Effect.mapError(
-                    () =>
-                        new CopilotError({
-                            message: "Invalid Copilot token response schema",
-                        })
-                )
-            );
+            const tokenData = yield* httpClientOk
+                .get(COPILOT_TOKEN_URL, {
+                    headers: {
+                        Accept: "application/json",
+                        Authorization: `Bearer ${refreshToken}`,
+                        ...HEADERS,
+                    },
+                })
+                .pipe(
+                    Effect.flatMap(
+                        HttpClientResponse.schemaBodyJson(CopilotTokenResponse)
+                    ),
+                    Effect.scoped,
+                    Effect.mapError(
+                        (e) =>
+                            new CopilotError({
+                                message: `Failed to get Copilot token: ${e}`,
+                            })
+                    )
+                );
 
             // Cache the token
             yield* keychain.write(KEYCHAIN_ACCESS_TOKEN, tokenData.token);
@@ -319,58 +285,35 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
             Effect.gen(function* () {
                 const token = yield* getCopilotToken;
 
-                const response = yield* Effect.tryPromise({
-                    try: () =>
-                        fetch(`${COPILOT_API_URL}/chat/completions`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${token}`,
-                                ...HEADERS,
-                                "Openai-Intent": "conversation-edits",
-                                "X-Initiator": "user",
-                            },
-                            body: JSON.stringify({
-                                model,
-                                messages,
-                                stream: false,
-                            }),
+                const completion = yield* httpClientOk
+                    .post(`${COPILOT_API_URL}/chat/completions`, {
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                            ...HEADERS,
+                            "Openai-Intent": "conversation-edits",
+                            "X-Initiator": "user",
+                        },
+                        body: HttpBody.unsafeJson({
+                            model,
+                            messages,
+                            stream: false,
                         }),
-                    catch: (e) =>
-                        new CopilotError({
-                            message: `Failed to send chat request: ${e}`,
-                        }),
-                });
-
-                if (!response.ok) {
-                    const text = yield* Effect.tryPromise(() =>
-                        response.text()
+                    })
+                    .pipe(
+                        Effect.flatMap(
+                            HttpClientResponse.schemaBodyJson(
+                                ChatCompletionResponse
+                            )
+                        ),
+                        Effect.scoped,
+                        Effect.mapError(
+                            (e) =>
+                                new CopilotError({
+                                    message: `Chat request failed: ${e}`,
+                                })
+                        )
                     );
-                    return yield* new CopilotError({
-                        message: `Chat request failed: ${response.status} - ${text}`,
-                    });
-                }
-
-                const json = yield* Effect.tryPromise({
-                    try: () => response.json(),
-                    catch: () =>
-                        new CopilotError({
-                            message: "Failed to parse chat response",
-                        }),
-                });
-
-                const completion = yield* Schema.decodeUnknown(
-                    ChatCompletionResponse
-                )(json).pipe(
-                    Effect.mapError(
-                        () =>
-                            new CopilotError({
-                                message: `Invalid chat response schema: ${JSON.stringify(
-                                    json
-                                )}`,
-                            })
-                    )
-                );
 
                 return completion;
             });
@@ -385,11 +328,88 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                 return response.choices[0]?.message.content ?? "";
             });
 
+        // Structured output using Effect Schema -> JSONSchema
+        const structuredOutput = <A, I, R>(
+            schema: Schema.Schema<A, I, R>,
+            userPrompt: string,
+            options?: { model?: string; schemaName?: string }
+        ) =>
+            Effect.gen(function* () {
+                const token = yield* getCopilotToken;
+                const model = options?.model ?? "gpt-4o";
+                const schemaName = options?.schemaName ?? "response";
+
+                // Convert Effect Schema to JSON Schema
+                const jsonSchema = JSONSchema.make(schema);
+
+                const completion = yield* httpClientOk
+                    .post(`${COPILOT_API_URL}/chat/completions`, {
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                            ...HEADERS,
+                            "Openai-Intent": "conversation-edits",
+                            "X-Initiator": "user",
+                        },
+                        body: HttpBody.unsafeJson({
+                            model,
+                            messages: [{ role: "user", content: userPrompt }],
+                            response_format: {
+                                type: "json_schema",
+                                json_schema: {
+                                    name: schemaName,
+                                    strict: true,
+                                    schema: jsonSchema,
+                                },
+                            },
+                        }),
+                    })
+                    .pipe(
+                        Effect.flatMap(
+                            HttpClientResponse.schemaBodyJson(
+                                ChatCompletionResponse
+                            )
+                        ),
+                        Effect.scoped,
+                        Effect.mapError(
+                            (e) =>
+                                new CopilotError({
+                                    message: `Structured output request failed: ${e}`,
+                                })
+                        )
+                    );
+
+                const content = completion.choices[0]?.message.content ?? "{}";
+
+                // Parse JSON and validate against schema
+                const parsed = yield* Effect.try({
+                    try: () => JSON.parse(content),
+                    catch: () =>
+                        new CopilotError({
+                            message: `Failed to parse JSON response: ${content}`,
+                        }),
+                });
+
+                const validated = yield* Schema.decodeUnknown(schema)(
+                    parsed
+                ).pipe(
+                    Effect.mapError(
+                        (e) =>
+                            new CopilotError({
+                                message: `Response validation failed: ${e}`,
+                            })
+                    )
+                );
+
+                return validated;
+            });
+
         return {
             authenticate,
             getCopilotToken,
             chat,
             prompt,
+            structuredOutput,
         };
     }),
 }) {}
@@ -397,6 +417,15 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
 // ===================
 // Test Script
 // ===================
+
+// Example schema for structured output
+const MathResult = Schema.Struct({
+    question: Schema.String.annotations({ description: "The math question" }),
+    answer: Schema.Number.annotations({ description: "The numeric answer" }),
+    explanation: Schema.String.annotations({
+        description: "Step by step explanation",
+    }),
+});
 
 const program = Effect.gen(function* () {
     const copilot = yield* Copilot;
@@ -414,11 +443,23 @@ const program = Effect.gen(function* () {
         yield* Console.log("✅ Already authenticated!");
     }
 
-    // Test prompt
+    // Test simple prompt
     yield* Console.log("\n📤 Sending test prompt...\n");
     const response = yield* copilot.prompt("What is 2 + 2? Reply in one word.");
-
     yield* Console.log(`📥 Response: ${response}`);
+
+    // Test structured output
+    yield* Console.log("\n📤 Sending structured output request...\n");
+    const result = yield* copilot.structuredOutput(
+        MathResult,
+        "What is 15 * 7?",
+        { schemaName: "math_result" }
+    );
+
+    yield* Console.log(`📥 Structured Response:`);
+    yield* Console.log(`   Question: ${result.question}`);
+    yield* Console.log(`   Answer: ${result.answer}`);
+    yield* Console.log(`   Explanation: ${result.explanation}`);
 }).pipe(
     Effect.provide(
         Layer.mergeAll(Copilot.Default, Keychain.Default, BunContext.layer)
