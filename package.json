@@ -1,0 +1,23 @@
+{
+    "name": "ais",
+    "module": "index.ts",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "prepare": "effect-language-service patch"
+    },
+    "devDependencies": {
+        "@effect/language-service": "^0.57.1",
+        "@types/bun": "latest"
+    },
+    "peerDependencies": {
+        "typescript": "^5.9.3"
+    },
+    "dependencies": {
+        "@effect/cli": "^0.72.1",
+        "@effect/platform-bun": "^0.85.0",
+        "ai": "^5.0.104",
+        "effect": "^3.19.8",
+        "ollama-ai-provider-v2": "^1.5.5"
+    }
+}
