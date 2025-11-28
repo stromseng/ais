@@ -1,4 +1,4 @@
-# ais
+# AI Suggestions (AIS)
 
 To install dependencies:
 
