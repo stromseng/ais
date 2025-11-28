@@ -420,7 +420,6 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
 
 // Example schema for structured output
 const MathResult = Schema.Struct({
-    question: Schema.String.annotations({ description: "The math question" }),
     answer: Schema.Number.annotations({ description: "The numeric answer" }),
     explanation: Schema.String.annotations({
         description: "Step by step explanation",
@@ -457,13 +456,13 @@ const program = Effect.gen(function* () {
     );
 
     yield* Console.log(`📥 Structured Response:`);
-    yield* Console.log(`   Question: ${result.question}`);
-    yield* Console.log(`   Answer: ${result.answer}`);
-    yield* Console.log(`   Explanation: ${result.explanation}`);
-}).pipe(
-    Effect.provide(
-        Layer.mergeAll(Copilot.Default, Keychain.Default, BunContext.layer)
+    yield* Console.log(result);
+});
+
+BunRuntime.runMain(
+    program.pipe(
+        Effect.provide(
+            Layer.mergeAll(Copilot.Default, Keychain.Default, BunContext.layer)
+        )
     )
 );
-
-BunRuntime.runMain(program);
