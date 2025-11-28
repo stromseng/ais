@@ -1,15 +1,11 @@
-import { Effect, Console, Schema, JSONSchema } from "effect";
+import { Effect, Console, Schema, JSONSchema, Config, Option } from "effect";
 import { BunRuntime, BunContext } from "@effect/platform-bun";
-import { Command, Args, HelpDoc, Span } from "@effect/cli";
+import { Command, Args, HelpDoc, Span, Options } from "@effect/cli";
 import { generateObject, generateText, jsonSchema } from "ai";
 import { ollama } from "ollama-ai-provider-v2";
 
-const model = ollama("qwen3:30b-a3b");
-
 // Define a text argument
-const text = Args.text({ name: "text" });
-
-const longtext = Args.repeated(text);
+const longtext = Args.text({ name: "command prompt" }).pipe(Args.repeated);
 
 const outputSchema = Schema.Struct({
     command: Schema.String.annotations({
@@ -21,11 +17,15 @@ const outputSchema = Schema.Struct({
     }),
 });
 
-const command = Command.make("echo", { longtext }, ({ longtext }) => {
+const command = Command.make("ais", { longtext }, ({ longtext }) => {
     return Effect.gen(function* () {
+        const env_model = yield* Config.string("MODEL").pipe(
+            Config.withDefault("qwen3:30b-a3b")
+        );
+
         const { object } = yield* Effect.tryPromise(() =>
             generateObject({
-                model: model,
+                model: ollama(env_model),
                 providerOptions: { ollama: { think: true } },
                 system: "Generate a CLI command to execute the action the user wants to perform. Make sure to explain what every flag and argument does. Do not include any example output.",
                 prompt: longtext.join(" "),
