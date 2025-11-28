@@ -14,6 +14,14 @@ import { Command } from "@effect/platform";
 import { KEYCHAIN_SERVICE_NAME } from "./constants";
 import type { Process } from "@effect/platform/CommandExecutor";
 
+export class KeychainError extends Schema.TaggedError<KeychainError>()(
+    "KeychainError",
+    {
+        message: Schema.String,
+        key: Schema.String,
+    }
+) {}
+
 // We use the macOS keychain as a KV Store.
 // Service -s is static
 // Account -a is the key we are writing to
@@ -39,11 +47,10 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
             );
             const [exitCode, stdout, stderr] = yield* exitStdOutErr(command);
             if (exitCode !== 0) {
-                return yield* Effect.die(
-                    new Error(
-                        `Failed to delete key "${key}" with error: ${stderr}`
-                    )
-                );
+                return yield* new KeychainError({
+                    message: `Failed to delete: ${stderr}`,
+                    key,
+                });
             }
             yield* Console.debug(`Deleted key "${key}"`);
         });
@@ -80,11 +87,10 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                     command
                 );
                 if (exitCode !== 0) {
-                    return yield* Effect.die(
-                        new Error(
-                            `Failed to write to key "${key}" with error: ${stderr}`
-                        )
-                    );
+                    return yield* new KeychainError({
+                        message: `Failed to write: ${stderr}`,
+                        key,
+                    });
                 }
             }),
             read: Effect.fn("read")(function* (key: string) {
@@ -101,11 +107,10 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                     command
                 );
                 if (exitCode !== 0) {
-                    return yield* Effect.die(
-                        new Error(
-                            `Failed to read key "${key}" with error: ${stderr}`
-                        )
-                    );
+                    return yield* new KeychainError({
+                        message: `Failed to read: ${stderr}`,
+                        key,
+                    });
                 }
                 return stdout;
             }),
@@ -114,7 +119,7 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
     }),
 }) {}
 
-const exitStdOutErr = <E, R>(command: Command.Command) =>
+const exitStdOutErr = (command: Command.Command) =>
     pipe(
         Command.start(command),
         Effect.flatMap((process) =>
