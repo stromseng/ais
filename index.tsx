@@ -6,6 +6,7 @@ import { SelectInput } from "./src/selectInput";
 import chalk from "chalk";
 import { generateObject, jsonSchema } from "ai";
 import { createCopilotProvider } from "./src/copilot-provider";
+import boxen from "boxen";
 
 // Define a text argument
 const longtext = Args.text({ name: "command prompt" }).pipe(Args.repeated);
@@ -34,7 +35,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
 
         const result = yield* Effect.promise(() =>
             generateObject({
-                model: provider.chat("gpt-4o"),
+                model: provider.chat("gpt-5-mini"),
                 schema: jsonSchema(JSONSchema.make(outputSchema)),
                 schemaName: "command",
                 prompt: longtext.join(" "),
@@ -54,14 +55,18 @@ flag1    description of what this flag does
 flag2    description of what this flag does
 
 Make sure to use newlines to separate the command and the explanation, as well as every flag and option.
+For complex multi-step pipelines, make sure to include a backslash \ and newlines to separate the commands.
 
 Be concise but thorough in your explanations.`,
             })
         );
         const parsed = yield* Schema.decodeUnknown(outputSchema)(result.object);
 
-        console.log(chalk.blue(parsed.command));
-        console.log(parsed.explanation);
+        console.log(chalk.blue(boxen(parsed.command, { title: "Command" })));
+        console.log(boxen(parsed.explanation, { title: "Explanation" }));
+
+        console.log("");
+        console.log("Choose an action:");
 
         const selectInput = yield* SelectInput;
 
