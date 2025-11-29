@@ -19,17 +19,21 @@ import { Keychain } from "./keychain";
 
 // Constants
 const CLIENT_ID = "Iv1.b507a08c87ecfe98";
-const HEADERS = {
+
+export const COPILOT_HEADERS = {
     "User-Agent": "GitHubCopilotChat/0.32.4",
     "Editor-Version": "vscode/1.105.1",
     "Editor-Plugin-Version": "copilot-chat/0.32.4",
     "Copilot-Integration-Id": "vscode-chat",
 };
 
+// Keep internal alias for backwards compat
+const HEADERS = COPILOT_HEADERS;
+
 const DEVICE_CODE_URL = "https://github.com/login/device/code";
 const ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
-const COPILOT_API_URL = "https://api.githubcopilot.com";
+export const COPILOT_API_URL = "https://api.githubcopilot.com";
 
 // MacOS Keychain keys
 const KEYCHAIN_REFRESH_TOKEN = "copilot-refresh-token";
@@ -440,6 +444,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
             });
 
         return {
+            getToken: getCopilotToken,
             chat,
             prompt,
             structuredOutput,

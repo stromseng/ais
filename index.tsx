@@ -1,9 +1,11 @@
-import { Effect, Schema, Layer, Logger, LogLevel } from "effect";
+import { Effect, Schema, Layer, Logger, LogLevel, JSONSchema } from "effect";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Command, Args, Span } from "@effect/cli";
 import { Copilot } from "./src/copilot";
 import { SelectInput } from "./src/selectInput";
 import chalk from "chalk";
+import { generateObject, jsonSchema } from "ai";
+import { createCopilotProvider } from "./src/copilot-provider";
 
 // Define a text argument
 const longtext = Args.text({ name: "command prompt" }).pipe(Args.repeated);
@@ -28,13 +30,38 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
         }
 
         const copilot = yield* Copilot;
-        const result = yield* copilot.structuredOutput(
-            outputSchema,
-            longtext.join(" ")
-        );
+        const provider = createCopilotProvider(copilot);
 
-        console.log(chalk.blue(result.command));
-        console.log(result.explanation);
+        const result = yield* Effect.promise(() =>
+            generateObject({
+                model: provider.chat("gpt-4o"),
+                schema: jsonSchema(JSONSchema.make(outputSchema)),
+                schemaName: "command",
+                prompt: longtext.join(" "),
+                system: `You are a CLI command generator. Your task is to generate shell commands that accomplish what the user requests in plain English.
+
+For each command you generate:
+1. Provide the command itself
+2. Include a clear explanation that covers:
+   - What the command does
+   - All flags and options used and their purposes
+   - Any important details about the command's behavior
+
+Format explanations like:
+command-name : brief description
+
+flag1    description of what this flag does
+flag2    description of what this flag does
+
+Make sure to use newlines to separate the command and the explanation, as well as every flag and option.
+
+Be concise but thorough in your explanations.`,
+            })
+        );
+        const parsed = yield* Schema.decodeUnknown(outputSchema)(result.object);
+
+        console.log(chalk.blue(parsed.command));
+        console.log(parsed.explanation);
 
         const selectInput = yield* SelectInput;
 
@@ -49,7 +76,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
         switch (action) {
             case "execute": {
                 console.log(chalk.green("Executing command..."));
-                const proc = Bun.spawnSync(["sh", "-c", result.command], {
+                const proc = Bun.spawnSync(["sh", "-c", parsed.command], {
                     stdin: "inherit",
                     stdout: "inherit",
                     stderr: "inherit",
@@ -59,7 +86,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
             case "copy": {
                 console.log(chalk.green("Copying command to clipboard..."));
                 const proc = Bun.spawnSync(["pbcopy"], {
-                    stdin: new Blob([result.command]),
+                    stdin: new Blob([parsed.command]),
                 });
                 process.exit(proc.exitCode ?? 0);
             }
