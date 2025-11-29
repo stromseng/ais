@@ -11,3 +11,9 @@ Finds PNG files recursively that exceed 1MB in size
   Copy
   Cancel
 ```
+
+### Tech Stack
+Built with [Effect](https://effect.website/), [Bun](https://bun.sh/), [React](https://react.dev/) + [Ink](https://github.com/vadimdemedes/ink) for the CLI UI, and the [Vercel AI SDK](https://sdk.vercel.ai/).
+
+### Copilot
+See https://docs.github.com/en/copilot/concepts/billing/copilot-requests for model list and pricing

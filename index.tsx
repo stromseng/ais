@@ -35,7 +35,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
 
         const result = yield* Effect.promise(() =>
             generateObject({
-                model: provider.chat("gpt-5-mini"),
+                model: provider.chat("grok-code-fast-1"),
                 schema: jsonSchema(JSONSchema.make(outputSchema)),
                 schemaName: "command",
                 prompt: longtext.join(" "),
