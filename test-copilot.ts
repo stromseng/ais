@@ -1,4 +1,14 @@
-import { Effect, Console, Layer, Schema, JSONSchema, Option } from "effect";
+import {
+    Effect,
+    Console,
+    Layer,
+    Schema,
+    JSONSchema,
+    Option,
+    Either,
+    Data,
+    Schedule,
+} from "effect";
 import {
     HttpClient,
     HttpClientResponse,
@@ -80,6 +90,14 @@ class CopilotError extends Schema.TaggedError<CopilotError>()("CopilotError", {
     message: Schema.String,
 }) {}
 
+class AuthorizationPendingError extends Data.TaggedError(
+    "AuthorizationPendingError"
+)<{}> {}
+
+class UnknownResponseError extends Data.TaggedError("UnknownResponseError")<{
+    response?: unknown;
+}> {}
+
 export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
     dependencies: [Keychain.Default, FetchHttpClient.layer],
     effect: Effect.gen(function* () {
@@ -122,9 +140,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
         // Poll for access token
         const pollAccessToken = (deviceCode: string, interval: number) =>
             Effect.gen(function* () {
-                while (true) {
-                    yield* Effect.sleep(`${interval} seconds`);
-
+                const pollToken = Effect.fn("pollToken")(function* () {
                     const response = yield* httpClient
                         .post(ACCESS_TOKEN_URL, {
                             headers: {
@@ -168,7 +184,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                         yield* Console.debug(
                             "Authorization pending, waiting..."
                         );
-                        continue;
+                        return yield* new AuthorizationPendingError();
                     }
 
                     // Check for error
@@ -180,8 +196,25 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                         });
                     }
 
-                    yield* Console.debug("Unknown response, continuing...");
-                }
+                    yield* Console.debug(
+                        `Got unknown response from GitHub copilot oauth: ${response}`
+                    );
+                    return yield* new UnknownResponseError({
+                        response,
+                    });
+                });
+
+                const policy = Schedule.addDelay(
+                    Schedule.recurs(60),
+                    () => `${interval} seconds`
+                );
+
+                return yield* Effect.retry(pollToken(), {
+                    schedule: policy,
+                    until: (e) => {
+                        return e instanceof UnknownResponseError;
+                    },
+                });
             });
 
         // Authenticate - full device code flow
