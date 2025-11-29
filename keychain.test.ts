@@ -1,10 +1,6 @@
-import { Console, Effect, Layer } from "effect";
+import { Console, Effect } from "effect";
 import { Keychain } from "./src/keychain";
-import {
-    BunCommandExecutor,
-    BunContext,
-    BunRuntime,
-} from "@effect/platform-bun";
+import { BunRuntime } from "@effect/platform-bun";
 
 const program = Effect.gen(function* () {
     const keychain = yield* Keychain;
@@ -12,6 +8,6 @@ const program = Effect.gen(function* () {
     const auth = yield* keychain.read("auth");
     yield* Console.log(`Read auth: ${auth}`);
     yield* keychain.delete("auth");
-}).pipe(Effect.provide(Layer.mergeAll(Keychain.Default, BunContext.layer)));
+}).pipe(Effect.provide(Keychain.Default));
 
 program.pipe(BunRuntime.runMain);

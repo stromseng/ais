@@ -9,9 +9,10 @@ import {
     pipe,
     Stream,
     String,
+    Layer,
 } from "effect";
-import { Command } from "@effect/platform";
-import type { Process } from "@effect/platform/CommandExecutor";
+import { Command, CommandExecutor } from "@effect/platform";
+import { BunContext } from "@effect/platform-bun";
 
 export const KEYCHAIN_SERVICE_NAME = "@stromseng/ais";
 
@@ -27,11 +28,44 @@ export class KeychainError extends Schema.TaggedError<KeychainError>()(
 // Service -s is static
 // Account -a is the key we are writing to
 export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
-    dependencies: [],
+    dependencies: [BunContext.layer],
     effect: Effect.gen(function* () {
-        const deleteKey = Effect.fn("deleteKey")(function* (key: string) {
-            // Check if key exists, if not, do nothing
-            const exists = yield* keyExists(key);
+        const executor = yield* CommandExecutor.CommandExecutor;
+
+        const provideExecutor = <A, E>(
+            effect: Effect.Effect<A, E, CommandExecutor.CommandExecutor>
+        ) =>
+            Effect.provideService(
+                effect,
+                CommandExecutor.CommandExecutor,
+                executor
+            );
+
+        const runCommand = (command: Command.Command) =>
+            provideExecutor(runExitStdOutErr(command));
+
+        const runExitCode = (command: Command.Command) =>
+            provideExecutor(Command.exitCode(command));
+
+        const checkKeyExists = Effect.fn("checkKeyExists")(function* (
+            key: string
+        ) {
+            const command = Command.make(
+                "security",
+                "find-generic-password",
+                "-s",
+                KEYCHAIN_SERVICE_NAME,
+                "-a",
+                key
+            );
+            const exitCode = yield* runExitCode(command);
+            return exitCode === 0;
+        });
+
+        const deleteKey = Effect.fn("deleteKeychainKey")(function* (
+            key: string
+        ) {
+            const exists = yield* checkKeyExists(key);
             if (!exists) {
                 yield* Console.debug(
                     `Key "${key}" does not exist, skipping deletion`
@@ -46,7 +80,7 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                 "-a",
                 key
             );
-            const [exitCode, stdout, stderr] = yield* exitStdOutErr(command);
+            const [exitCode, _, stderr] = yield* runCommand(command);
             if (exitCode !== 0) {
                 return yield* new KeychainError({
                     message: `Failed to delete: ${stderr}`,
@@ -55,22 +89,13 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
             }
             yield* Console.debug(`Deleted key "${key}"`);
         });
-        const keyExists = Effect.fn("existsKey")(function* (key: string) {
-            const command = Command.make(
-                "security",
-                "find-generic-password",
-                "-s",
-                KEYCHAIN_SERVICE_NAME,
-                "-a",
-                key
-            );
-            const exitCode = yield* Command.exitCode(command);
-            return exitCode === 0;
-        });
+
         return {
-            write: Effect.fn("write")(function* (key: string, value: string) {
-                // Overwrite key, therefore delete before we write
-                const exists = yield* keyExists(key);
+            write: Effect.fn("writeKeychainKey")(function* (
+                key: string,
+                value: string
+            ) {
+                const exists = yield* checkKeyExists(key);
                 if (exists) {
                     yield* deleteKey(key);
                 }
@@ -84,9 +109,7 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                     "-w",
                     value
                 );
-                const [exitCode, stdout, stderr] = yield* exitStdOutErr(
-                    command
-                );
+                const [exitCode, _, stderr] = yield* runCommand(command);
                 if (exitCode !== 0) {
                     return yield* new KeychainError({
                         message: `Failed to write: ${stderr}`,
@@ -94,7 +117,8 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                     });
                 }
             }),
-            read: Effect.fn("read")(function* (key: string) {
+
+            read: Effect.fn("readKeychainKey")(function* (key: string) {
                 const command = Command.make(
                     "security",
                     "find-generic-password",
@@ -104,9 +128,7 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                     key,
                     "-w"
                 );
-                const [exitCode, stdout, stderr] = yield* exitStdOutErr(
-                    command
-                );
+                const [exitCode, stdout, stderr] = yield* runCommand(command);
                 if (exitCode !== 0) {
                     return yield* new KeychainError({
                         message: `Failed to read: ${stderr}`,
@@ -115,12 +137,13 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                 }
                 return stdout;
             }),
+
             delete: deleteKey,
         };
     }),
 }) {}
 
-const exitStdOutErr = (command: Command.Command) =>
+const runExitStdOutErr = (command: Command.Command) =>
     pipe(
         Command.start(command),
         Effect.flatMap((process) =>

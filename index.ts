@@ -1,8 +1,20 @@
-import { Effect, Console, Schema, JSONSchema, Config, Option } from "effect";
-import { BunRuntime, BunContext } from "@effect/platform-bun";
+import {
+    Effect,
+    Console,
+    Schema,
+    JSONSchema,
+    Config,
+    Option,
+    Layer,
+    Logger,
+    LogLevel,
+} from "effect";
+import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Command, Args, HelpDoc, Span, Options } from "@effect/cli";
 import { generateObject, generateText, jsonSchema } from "ai";
 import { ollama } from "ollama-ai-provider-v2";
+import { Copilot } from "./src/copilot";
+import { Keychain } from "./src/keychain";
 
 // Define a text argument
 const longtext = Args.text({ name: "command prompt" }).pipe(Args.repeated);
@@ -19,20 +31,27 @@ const outputSchema = Schema.Struct({
 
 const command = Command.make("ais", { longtext }, ({ longtext }) => {
     return Effect.gen(function* () {
-        const env_model = yield* Config.string("MODEL").pipe(
-            Config.withDefault("qwen3:30b-a3b")
-        );
+        // const env_model = yield* Config.string("MODEL").pipe(
+        //     Config.withDefault("qwen3:30b-a3b")
+        // );
 
-        const { object } = yield* Effect.tryPromise(() =>
-            generateObject({
-                model: ollama(env_model),
-                providerOptions: { ollama: { think: true } },
-                system: "Generate a CLI command to execute the action the user wants to perform. Make sure to explain what every flag and argument does. Do not include any example output.",
-                prompt: longtext.join(" "),
-                schema: jsonSchema(JSONSchema.make(outputSchema)),
-            })
+        // const { object } = yield* Effect.tryPromise(() =>
+        //     generateObject({
+        //         model: ollama(env_model),
+        //         providerOptions: { ollama: { think: true } },
+        //         system: "Generate a CLI command to execute the action the user wants to perform. Make sure to explain what every flag and argument does. Do not include any example output.",
+        //         prompt: longtext.join(" "),
+        //         schema: jsonSchema(JSONSchema.make(outputSchema)),
+        //     })
+        // );
+
+        const copilot = yield* Copilot;
+        const result = yield* copilot.structuredOutput(
+            outputSchema,
+            longtext.join(" "),
+            { schemaName: "command" }
         );
-        yield* Console.log(object);
+        yield* Console.info(result);
     });
 });
 
@@ -44,4 +63,10 @@ const cli = Command.run(command, {
 });
 
 // Prepare and run the CLI application
-cli(process.argv).pipe(Effect.provide(BunContext.layer), BunRuntime.runMain);
+cli(process.argv).pipe(
+    Effect.provide(
+        Layer.mergeAll(Copilot.Default, BunContext.layer, Logger.pretty)
+    ),
+    Logger.withMinimumLogLevel(LogLevel.Info),
+    BunRuntime.runMain
+);

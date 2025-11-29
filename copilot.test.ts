@@ -1,6 +1,6 @@
 import { Keychain } from "./src/keychain";
 import { Copilot } from "./src/copilot";
-import { BunRuntime, BunContext } from "@effect/platform-bun";
+import { BunRuntime } from "@effect/platform-bun";
 import { Schema, Effect, Console, Layer } from "effect";
 
 // Example schema for structured output
@@ -32,9 +32,5 @@ const program = Effect.gen(function* () {
 });
 
 BunRuntime.runMain(
-    program.pipe(
-        Effect.provide(
-            Layer.mergeAll(Copilot.Default, Keychain.Default, BunContext.layer)
-        )
-    )
+    program.pipe(Effect.provide(Layer.mergeAll(Copilot.Default)))
 );

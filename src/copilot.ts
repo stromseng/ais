@@ -7,6 +7,7 @@ import {
     Either,
     Data,
     Schedule,
+    Logger,
 } from "effect";
 import {
     HttpClient,
@@ -224,13 +225,13 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
 
         // Authenticate - full device code flow
         const authenticate = Effect.gen(function* () {
-            yield* Console.log("Starting GitHub Copilot authentication...");
+            yield* Console.info("Starting GitHub Copilot authentication...");
 
             const deviceCode = yield* getDeviceCode;
 
-            yield* Console.log(`\n🔐 Open: ${deviceCode.verification_uri}`);
-            yield* Console.log(`📋 Enter code: ${deviceCode.user_code}\n`);
-            yield* Console.log("Waiting for authorization...");
+            yield* Console.info(`\n🔐 Open: ${deviceCode.verification_uri}`);
+            yield* Console.info(`📋 Enter code: ${deviceCode.user_code}\n`);
+            yield* Console.info("Waiting for authorization...");
 
             const accessToken = yield* pollAccessToken(
                 deviceCode.device_code,
@@ -242,7 +243,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                 KEYCHAIN_REFRESH_TOKEN,
                 accessToken.access_token
             );
-            yield* Console.log("✅ Authentication successful! Token stored.");
+            yield* Console.info("✅ Authentication successful! Token stored.");
 
             return accessToken.access_token;
         });
