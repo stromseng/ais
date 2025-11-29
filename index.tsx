@@ -23,6 +23,11 @@ const outputSchema = Schema.Struct({
 
 type Action = "execute" | "copy" | "cancel";
 
+const MODEL_STRINGS = {
+    grokcf1: "grok-code-fast-1",
+    free: "gpt-5-mini",
+};
+
 const command = Command.make("ais", { longtext }, ({ longtext }) => {
     return Effect.gen(function* () {
         if (longtext.length === 0) {
@@ -35,7 +40,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
 
         const result = yield* Effect.promise(() =>
             generateObject({
-                model: provider.chat("grok-code-fast-1"),
+                model: provider.chat(MODEL_STRINGS.free),
                 schema: jsonSchema(JSONSchema.make(outputSchema)),
                 schemaName: "command",
                 prompt: longtext.join(" "),
