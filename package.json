@@ -16,8 +16,12 @@
     "dependencies": {
         "@effect/cli": "^0.72.1",
         "@effect/platform-bun": "^0.85.0",
+        "@types/react": "^19.2.7",
         "ai": "^5.0.104",
         "effect": "^3.19.8",
-        "ollama-ai-provider-v2": "^1.5.5"
+        "ink": "^6.5.1",
+        "ink-select-input": "^6.2.0",
+        "ollama-ai-provider-v2": "^1.5.5",
+        "react": "^19.2.0"
     }
 }
