@@ -11,8 +11,9 @@ import {
     String,
 } from "effect";
 import { Command } from "@effect/platform";
-import { KEYCHAIN_SERVICE_NAME } from "./constants";
 import type { Process } from "@effect/platform/CommandExecutor";
+
+export const KEYCHAIN_SERVICE_NAME = "@stromseng/ais";
 
 export class KeychainError extends Schema.TaggedError<KeychainError>()(
     "KeychainError",

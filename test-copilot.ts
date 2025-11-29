@@ -22,7 +22,7 @@ const ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 const COPILOT_API_URL = "https://api.githubcopilot.com";
 
-// Keychain keys
+// MacOS Keychain keys
 const KEYCHAIN_REFRESH_TOKEN = "copilot-refresh-token";
 const KEYCHAIN_ACCESS_TOKEN = "copilot-access-token";
 const KEYCHAIN_ACCESS_EXPIRES = "copilot-access-expires";
@@ -210,6 +210,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
         });
 
         // Get Copilot API token (exchanges GitHub OAuth token for Copilot token)
+        // Automatically triggers authentication if no refresh token exists
         const getCopilotToken = Effect.gen(function* () {
             // Check if we have a valid cached token
             const cachedToken = yield* keychain
@@ -228,18 +229,10 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                 }
             }
 
-            // Get refresh token from keychain
+            // Get refresh token from keychain, authenticate if not found
             const refreshToken = yield* keychain
                 .read(KEYCHAIN_REFRESH_TOKEN)
-                .pipe(
-                    Effect.catchAll(
-                        () =>
-                            new CopilotError({
-                                message:
-                                    "No refresh token found. Run authenticate() first.",
-                            })
-                    )
-                );
+                .pipe(Effect.catchAll(() => authenticate));
 
             yield* Console.debug("Fetching new Copilot API token...");
 
@@ -405,8 +398,6 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
             });
 
         return {
-            authenticate,
-            getCopilotToken,
             chat,
             prompt,
             structuredOutput,
@@ -429,21 +420,8 @@ const MathResult = Schema.Struct({
 const program = Effect.gen(function* () {
     const copilot = yield* Copilot;
 
-    // Check if already authenticated by trying to get token
-    const hasToken = yield* copilot.getCopilotToken.pipe(
-        Effect.map(() => true),
-        Effect.catchAll(() => Effect.succeed(false))
-    );
-
-    if (!hasToken) {
-        yield* Console.log("No valid token found. Starting authentication...");
-        yield* copilot.authenticate;
-    } else {
-        yield* Console.log("✅ Already authenticated!");
-    }
-
-    // Test simple prompt
-    yield* Console.log("\n📤 Sending test prompt...\n");
+    // Test simple prompt (auth handled transparently)
+    yield* Console.log("📤 Sending test prompt...\n");
     const response = yield* copilot.prompt("What is 2 + 2? Reply in one word.");
     yield* Console.log(`📥 Response: ${response}`);
 
