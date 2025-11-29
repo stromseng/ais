@@ -22,6 +22,11 @@ type Action = "execute" | "copy" | "cancel";
 
 const command = Command.make("ais", { longtext }, ({ longtext }) => {
     return Effect.gen(function* () {
+        if (longtext.length === 0) {
+            console.log(chalk.red("No command provided"));
+            process.exit(1);
+        }
+
         const copilot = yield* Copilot;
         const result = yield* copilot.structuredOutput(
             outputSchema,

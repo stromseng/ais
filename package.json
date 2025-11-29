@@ -3,9 +3,13 @@
     "module": "index.ts",
     "type": "module",
     "private": true,
+    "bin": {
+        "ais": "./dist/ais"
+    },
     "scripts": {
         "prepare": "effect-language-service patch",
-        "build": "bun build './index.tsx' --target node --compile --outfile ais"
+        "build": "bun build './index.tsx' --target node --compile --outfile dist/ais",
+        "link": "bun link"
     },
     "devDependencies": {
         "@effect/language-service": "^0.57.1",
