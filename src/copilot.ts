@@ -364,7 +364,10 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
         const structuredOutput = <A, I, R>(
             schema: Schema.Schema<A, I, R>,
             userPrompt: string,
-            options?: { model?: string; schemaName?: string }
+            options: { model?: string; schemaName?: string } = {
+                model: "gpt-4o",
+                schemaName: "response",
+            }
         ) =>
             Effect.gen(function* () {
                 const token = yield* getCopilotToken;

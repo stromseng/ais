@@ -48,8 +48,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
         const copilot = yield* Copilot;
         const result = yield* copilot.structuredOutput(
             outputSchema,
-            longtext.join(" "),
-            { schemaName: "command" }
+            longtext.join(" ")
         );
         yield* Console.info(result);
     });
