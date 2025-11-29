@@ -3,6 +3,7 @@ import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Command, Args, Span } from "@effect/cli";
 import { Copilot } from "./src/copilot";
 import { SelectInput } from "./src/selectInput";
+import chalk from "chalk";
 
 // Define a text argument
 const longtext = Args.text({ name: "command prompt" }).pipe(Args.repeated);
@@ -27,7 +28,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
             longtext.join(" ")
         );
 
-        console.log(result.command);
+        console.log(chalk.blue(result.command));
         console.log(result.explanation);
 
         const selectInput = yield* SelectInput;
@@ -42,6 +43,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
 
         switch (action) {
             case "execute": {
+                console.log(chalk.green("Executing command..."));
                 const proc = Bun.spawnSync(["sh", "-c", result.command], {
                     stdin: "inherit",
                     stdout: "inherit",
@@ -50,13 +52,14 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
                 process.exit(proc.exitCode ?? 0);
             }
             case "copy": {
+                console.log(chalk.green("Copying command to clipboard..."));
                 const proc = Bun.spawnSync(["pbcopy"], {
                     stdin: new Blob([result.command]),
                 });
-                console.log("Copied to clipboard");
                 process.exit(proc.exitCode ?? 0);
             }
             case "cancel": {
+                console.log(chalk.red("Cancelling..."));
                 process.exit(0);
             }
         }

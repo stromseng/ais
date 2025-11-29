@@ -184,7 +184,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                             response
                         );
                     if (Option.isSome(pendingResult)) {
-                        yield* Console.debug(
+                        yield* Effect.logDebug(
                             "Authorization pending, waiting..."
                         );
                         return yield* new AuthorizationPendingError();
@@ -199,7 +199,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                         });
                     }
 
-                    yield* Console.debug(
+                    yield* Effect.logError(
                         `Got unknown response from GitHub copilot oauth: ${response}`
                     );
                     return yield* new UnknownResponseError({
@@ -263,7 +263,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
             if (Option.isSome(cachedToken) && Option.isSome(cachedExpires)) {
                 const expiresAt = parseInt(cachedExpires.value, 10);
                 if (expiresAt > Date.now()) {
-                    yield* Console.debug("Using cached Copilot token");
+                    yield* Effect.logDebug("Using cached Copilot token");
                     return cachedToken.value;
                 }
             }
@@ -273,7 +273,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                 .read(KEYCHAIN_REFRESH_TOKEN)
                 .pipe(Effect.catchAll(() => authenticate));
 
-            yield* Console.debug("Fetching new Copilot API token...");
+            yield* Effect.logDebug("Fetching new Copilot API token...");
 
             const tokenData = yield* httpClientOk
                 .get(COPILOT_TOKEN_URL, {

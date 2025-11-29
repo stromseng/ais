@@ -67,7 +67,7 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
         ) {
             const exists = yield* checkKeyExists(key);
             if (!exists) {
-                yield* Console.debug(
+                yield* Effect.logDebug(
                     `Key "${key}" does not exist, skipping deletion`
                 );
                 return;
@@ -87,7 +87,7 @@ export class Keychain extends Effect.Service<Keychain>()("ais/Keychain", {
                     key,
                 });
             }
-            yield* Console.debug(`Deleted key "${key}"`);
+            yield* Effect.logDebug(`Deleted key "${key}"`);
         });
 
         return {
