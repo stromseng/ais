@@ -98,6 +98,10 @@ class UnknownResponseError extends Data.TaggedError("UnknownResponseError")<{
     response?: unknown;
 }> {}
 
+class OAuthError extends Data.TaggedError("OAuthError")<{
+    error: string;
+}> {}
+
 export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
     dependencies: [Keychain.Default, FetchHttpClient.layer],
     effect: Effect.gen(function* () {
@@ -191,8 +195,8 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                     const errorResult =
                         Schema.decodeUnknownOption(AccessTokenError)(response);
                     if (Option.isSome(errorResult)) {
-                        return yield* new CopilotError({
-                            message: `OAuth error: ${errorResult.value.error}`,
+                        return yield* new OAuthError({
+                            error: errorResult.value.error,
                         });
                     }
 
@@ -212,7 +216,10 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                 return yield* Effect.retry(pollToken(), {
                     schedule: policy,
                     until: (e) => {
-                        return e instanceof UnknownResponseError;
+                        return (
+                            e instanceof UnknownResponseError ||
+                            e instanceof OAuthError
+                        );
                     },
                 });
             });
