@@ -1,4 +1,4 @@
-import { Effect, Console, Layer, Schema, JSONSchema } from "effect";
+import { Effect, Console, Layer, Schema, JSONSchema, Option } from "effect";
 import {
     HttpClient,
     HttpClientResponse,
@@ -155,7 +155,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                         Schema.decodeUnknownOption(AccessTokenResponse)(
                             response
                         );
-                    if (tokenResult._tag === "Some") {
+                    if (Option.isSome(tokenResult)) {
                         return tokenResult.value;
                     }
 
@@ -164,7 +164,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                         Schema.decodeUnknownOption(AccessTokenPending)(
                             response
                         );
-                    if (pendingResult._tag === "Some") {
+                    if (Option.isSome(pendingResult)) {
                         yield* Console.debug(
                             "Authorization pending, waiting..."
                         );
@@ -174,7 +174,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                     // Check for error
                     const errorResult =
                         Schema.decodeUnknownOption(AccessTokenError)(response);
-                    if (errorResult._tag === "Some") {
+                    if (Option.isSome(errorResult)) {
                         return yield* new CopilotError({
                             message: `OAuth error: ${errorResult.value.error}`,
                         });
@@ -221,7 +221,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                 .read(KEYCHAIN_ACCESS_EXPIRES)
                 .pipe(Effect.option);
 
-            if (cachedToken._tag === "Some" && cachedExpires._tag === "Some") {
+            if (Option.isSome(cachedToken) && Option.isSome(cachedExpires)) {
                 const expiresAt = parseInt(cachedExpires.value, 10);
                 if (expiresAt > Date.now()) {
                     yield* Console.debug("Using cached Copilot token");
