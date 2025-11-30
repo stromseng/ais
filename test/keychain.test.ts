@@ -1,5 +1,5 @@
 import { Console, Effect } from "effect";
-import { Keychain } from "./src/keychain";
+import { Keychain } from "../src/keychain";
 import { BunRuntime } from "@effect/platform-bun";
 
 const program = Effect.gen(function* () {

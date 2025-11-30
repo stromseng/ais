@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test";
 import { Effect, Schema, JSONSchema } from "effect";
 import { generateObject } from "ai";
-import { Copilot } from "./src/copilot";
-import { createCopilotProvider } from "./src/copilot-provider";
+import { Copilot } from "../src/copilot";
+import { createCopilotProvider } from "../src/copilot-provider";
 import { jsonSchema } from "ai";
 
 const MathResult = Schema.Struct({
