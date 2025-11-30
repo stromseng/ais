@@ -19,7 +19,7 @@ Built with [Effect](https://effect.website/), [Bun](https://bun.sh/), [React](ht
 See https://docs.github.com/en/copilot/concepts/billing/copilot-requests for model list and pricing
 
 ### TODO
-- [ ] Allow stdin input the the promp
+- [ ] Allow stdin input to the prompt
 - [ ] Add Config service stored in users .config dir.
 - [ ] Add optional `ai` command to simply prompt ai and get a response. Maybe add chat???
 - [ ] Add `aic` for chatting?
