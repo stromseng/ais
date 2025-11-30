@@ -8,8 +8,9 @@
     },
     "scripts": {
         "prepare": "effect-language-service patch",
-        "build": "bun build './index.tsx' --target node --compile --outfile dist/ais",
-        "link": "bun link"
+        "build": "bun build './ais.ts' --target node --compile --outfile dist/ais",
+        "link": "bun link",
+        "switch": "bun run build && bun run link"
     },
     "devDependencies": {
         "@effect/language-service": "^0.57.1",
