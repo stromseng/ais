@@ -45,7 +45,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
 
         const result = yield* Effect.promise(() =>
             generateObject({
-                model: provider.chat(MODEL_STRINGS.gpt4o),
+                model: provider.chat(MODEL_STRINGS.free.gpt41),
                 schema: jsonSchema(JSONSchema.make(outputSchema)),
                 schemaName: "command",
                 prompt: prompt,

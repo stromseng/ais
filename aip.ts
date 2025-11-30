@@ -33,7 +33,7 @@ const command = Command.make("aip", { longtext }, ({ longtext }) => {
 
         const result = yield* Effect.promise(() =>
             generateText({
-                model: provider.chat(MODEL_STRINGS.gpt4o),
+                model: provider.chat(MODEL_STRINGS.free.gpt41),
                 prompt: prompt,
             })
         );
