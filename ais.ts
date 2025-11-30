@@ -7,6 +7,7 @@ import chalk from "chalk";
 import { generateObject, jsonSchema } from "ai";
 import { createCopilotProvider } from "./src/copilot-provider";
 import boxen from "boxen";
+import { MODEL_STRINGS } from "./src/utils";
 
 // Define a text argument
 const longtext = Args.text({ name: "command prompt" }).pipe(Args.repeated);
@@ -22,12 +23,6 @@ const outputSchema = Schema.Struct({
 });
 
 type Action = "execute" | "copy" | "cancel";
-
-const MODEL_STRINGS = {
-    grokcf1: "grok-code-fast-1",
-    free: "gpt-5-mini",
-    gpt4o: "gpt-4o",
-};
 
 const command = Command.make("ais", { longtext }, ({ longtext }) => {
     return Effect.gen(function* () {

@@ -4,11 +4,12 @@
     "type": "module",
     "private": true,
     "bin": {
-        "ais": "./dist/ais"
+        "ais": "./dist/ais",
+        "aip": "./dist/aip"
     },
     "scripts": {
         "prepare": "effect-language-service patch",
-        "build": "bun build './ais.ts' --target node --compile --outfile dist/ais",
+        "build": "bun build './ais.ts' --target node --compile --outfile dist/ais && bun build './aip.ts' --target node --compile --outfile dist/aip",
         "link": "bun link",
         "switch": "bun run build && bun run link"
     },
