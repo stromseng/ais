@@ -26,24 +26,34 @@ type Action = "execute" | "copy" | "cancel";
 const MODEL_STRINGS = {
     grokcf1: "grok-code-fast-1",
     free: "gpt-5-mini",
+    gpt4o: "gpt-4o",
 };
 
 const command = Command.make("ais", { longtext }, ({ longtext }) => {
     return Effect.gen(function* () {
-        if (longtext.length === 0) {
-            console.log(chalk.red("No command provided"));
+        // Only read stdin if there's piped input (not a TTY)
+        const piped = yield* Effect.promise(() =>
+            process.stdin.isTTY ? Promise.resolve("") : Bun.stdin.text()
+        );
+        yield* Effect.logDebug(`piped: ${piped}`);
+
+        if (longtext.length === 0 && !piped) {
+            yield* Effect.logError(chalk.red("No prompt provided"));
             process.exit(1);
         }
+        yield* Effect.logDebug(`longtext: ${longtext.join(" ")}`);
+
+        const prompt = longtext.join(" ") + (piped ? `\n\n${piped}` : "");
 
         const copilot = yield* Copilot;
         const provider = createCopilotProvider(copilot);
 
         const result = yield* Effect.promise(() =>
             generateObject({
-                model: provider.chat(MODEL_STRINGS.free),
+                model: provider.chat(MODEL_STRINGS.gpt4o),
                 schema: jsonSchema(JSONSchema.make(outputSchema)),
                 schemaName: "command",
-                prompt: longtext.join(" "),
+                prompt: prompt,
                 system: `You are a CLI command generator. Your task is to generate shell commands that accomplish what the user requests in plain English.
 
 For each command you generate:
