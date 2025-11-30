@@ -27,9 +27,6 @@ export const COPILOT_HEADERS = {
     "Copilot-Integration-Id": "vscode-chat",
 };
 
-// Keep internal alias for backwards compat
-const HEADERS = COPILOT_HEADERS;
-
 const DEVICE_CODE_URL = "https://github.com/login/device/code";
 const ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
@@ -264,7 +261,7 @@ export class Copilot extends Effect.Service<Copilot>()("ais/Copilot", {
                     headers: {
                         Accept: "application/json",
                         Authorization: `Bearer ${refreshToken}`,
-                        ...HEADERS,
+                        ...COPILOT_HEADERS,
                     },
                 })
                 .pipe(
