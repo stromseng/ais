@@ -56,8 +56,8 @@ For each command you generate:
 Format explanations like:
 command-name : brief description
 
-flag1    description of what this flag does
-flag2    description of what this flag does
+flag1    brief description of what this flag does
+flag2    brief description of what this flag does
 
 Make sure to use newlines to separate the command and the explanation, as well as every flag and option.
 For complex multi-step pipelines, make sure to include a backslash \ and newlines to separate the commands.
