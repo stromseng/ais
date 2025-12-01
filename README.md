@@ -1,4 +1,8 @@
-# AI Suggest (AIS)
+# AIS
+
+Two AI CLI tools: `ais` (AI Suggest) and `aip` (AI Prompt).
+
+## `ais` - AI Suggest
 
 Describe what you want in plain English, get a shell command back. Execute it, copy it, or bail.
 
@@ -12,7 +16,16 @@ Finds PNG files recursively that exceed 1MB in size
   Cancel
 ```
 
-### Tech Stack
+## `aip` - AI Prompt
+
+Simple AI text generation. Pass a prompt, get a response.
+
+```
+$ aip explain what a monad is in one sentence
+$ echo "some text" | aip summarize this
+```
+
+## Tech Stack
 Built with [Effect](https://effect.website/), [Bun](https://bun.sh/), and the [Vercel AI SDK](https://sdk.vercel.ai/).
 
 ### Copilot
