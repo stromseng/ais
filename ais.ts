@@ -1,4 +1,4 @@
-import { Effect, Schema, Layer, Logger, LogLevel } from "effect";
+import { Effect, Schema, Layer, Logger, LogLevel, Console } from "effect";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Command, Args, Span } from "@effect/cli";
 import { SelectInput } from "./src/selectInput";
@@ -65,11 +65,13 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
             schemaName: "command",
         });
 
-        console.log(chalk.blue(boxen(parsed.command, { title: "Command" })));
-        console.log(boxen(parsed.explanation, { title: "Explanation" }));
+        yield* Console.log(
+            chalk.blue(boxen(parsed.command, { title: "Command" }))
+        );
+        yield* Console.log(boxen(parsed.explanation, { title: "Explanation" }));
 
-        console.log("");
-        console.log("Choose an action:");
+        yield* Console.log("");
+        yield* Console.log("Choose an action:");
 
         const selectInput = yield* SelectInput;
 
@@ -83,7 +85,7 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
 
         switch (action) {
             case "execute": {
-                console.log(chalk.green("Executing command..."));
+                yield* Console.log(chalk.green("Executing command..."));
                 const proc = Bun.spawnSync(["sh", "-c", parsed.command], {
                     stdin: "inherit",
                     stdout: "inherit",
@@ -92,14 +94,16 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
                 process.exit(proc.exitCode ?? 0);
             }
             case "copy": {
-                console.log(chalk.green("Copying command to clipboard..."));
+                yield* Console.log(
+                    chalk.green("Copying command to clipboard...")
+                );
                 const proc = Bun.spawnSync(["pbcopy"], {
                     stdin: new Blob([parsed.command]),
                 });
                 process.exit(proc.exitCode ?? 0);
             }
             case "cancel": {
-                console.log(chalk.red("Cancelling..."));
+                yield* Console.log(chalk.red("Cancelling..."));
                 process.exit(0);
             }
         }

@@ -5,6 +5,7 @@ import {
     Schema,
     JSONSchema,
     ParseResult,
+    Data,
 } from "effect";
 import { createOpenAI } from "@ai-sdk/openai";
 import {
@@ -72,16 +73,30 @@ const createProviderWithToken = (token: string) =>
 // Token error type from CopilotAuth
 type TokenError = Effect.Effect.Error<CopilotAuth["getToken"]>;
 
+// Custom AI errors
+export class GenerateTextError extends Data.TaggedError("GenerateTextError")<{
+    cause: unknown;
+}> {}
+
+export class GenerateObjectError extends Data.TaggedError(
+    "GenerateObjectError"
+)<{
+    cause: unknown;
+}> {}
+
 // AI service interface
 export interface AIService {
     readonly generateText: (
         prompt: string
-    ) => Effect.Effect<string, TokenError>;
+    ) => Effect.Effect<string, TokenError | GenerateTextError>;
     readonly generateObject: <A, I>(
         prompt: string,
         schema: Schema.Schema<A, I>,
         options?: { system?: string; schemaName?: string }
-    ) => Effect.Effect<A, TokenError | ParseResult.ParseError>;
+    ) => Effect.Effect<
+        A,
+        TokenError | GenerateObjectError | ParseResult.ParseError
+    >;
 }
 
 // AI tag
@@ -111,12 +126,14 @@ export const make = (modelKey: ModelKey): Layer.Layer<AI, never, CopilotAuth> =>
                     Effect.gen(function* () {
                         const token = yield* copilotAuth.getToken;
                         const provider = createProviderWithToken(token);
-                        const result = yield* Effect.promise(() =>
-                            aiGenerateText({
-                                model: getModel(provider),
-                                prompt,
-                            })
-                        );
+                        const result = yield* Effect.tryPromise({
+                            try: () =>
+                                aiGenerateText({
+                                    model: getModel(provider),
+                                    prompt,
+                                }),
+                            catch: (cause) => new GenerateTextError({ cause }),
+                        });
                         return result.text;
                     }),
 
@@ -128,15 +145,18 @@ export const make = (modelKey: ModelKey): Layer.Layer<AI, never, CopilotAuth> =>
                     Effect.gen(function* () {
                         const token = yield* copilotAuth.getToken;
                         const provider = createProviderWithToken(token);
-                        const result = yield* Effect.promise(() =>
-                            aiGenerateObject({
-                                model: getModel(provider),
-                                schema: jsonSchema(JSONSchema.make(schema)),
-                                schemaName: options?.schemaName,
-                                prompt,
-                                system: options?.system,
-                            })
-                        );
+                        const result = yield* Effect.tryPromise({
+                            try: () =>
+                                aiGenerateObject({
+                                    model: getModel(provider),
+                                    schema: jsonSchema(JSONSchema.make(schema)),
+                                    schemaName: options?.schemaName,
+                                    prompt,
+                                    system: options?.system,
+                                }),
+                            catch: (cause) =>
+                                new GenerateObjectError({ cause }),
+                        });
                         return yield* Schema.decodeUnknown(schema)(
                             result.object
                         );
