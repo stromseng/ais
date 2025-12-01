@@ -1,13 +1,11 @@
-import { Effect, Schema, Layer, Logger, LogLevel, JSONSchema } from "effect";
+import { Effect, Schema, Layer, Logger, LogLevel } from "effect";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Command, Args, Span } from "@effect/cli";
-import { Copilot } from "./src/copilot";
 import { SelectInput } from "./src/selectInput";
 import chalk from "chalk";
-import { generateObject, jsonSchema } from "ai";
-import { createCopilotProvider } from "./src/copilot-provider";
 import boxen from "boxen";
-import { MODEL_STRINGS } from "./src/utils";
+import { AI, make as makeAI } from "./src/ai";
+import { CopilotAuth } from "./src/copilotAuth";
 
 // Define a text argument
 const longtext = Args.text({ name: "command prompt" }).pipe(Args.repeated);
@@ -24,32 +22,7 @@ const outputSchema = Schema.Struct({
 
 type Action = "execute" | "copy" | "cancel";
 
-const command = Command.make("ais", { longtext }, ({ longtext }) => {
-    return Effect.gen(function* () {
-        // Only read stdin if there's piped input (not a TTY)
-        const piped = yield* Effect.promise(() =>
-            process.stdin.isTTY ? Promise.resolve("") : Bun.stdin.text()
-        );
-        yield* Effect.logDebug(`piped: ${piped}`);
-
-        if (longtext.length === 0 && !piped) {
-            yield* Effect.logError(chalk.red("No prompt provided"));
-            process.exit(1);
-        }
-        yield* Effect.logDebug(`longtext: ${longtext.join(" ")}`);
-
-        const prompt = longtext.join(" ") + (piped ? `\n\n${piped}` : "");
-
-        const copilot = yield* Copilot;
-        const provider = createCopilotProvider(copilot);
-
-        const result = yield* Effect.promise(() =>
-            generateObject({
-                model: provider.chat(MODEL_STRINGS.free.gpt41),
-                schema: jsonSchema(JSONSchema.make(outputSchema)),
-                schemaName: "command",
-                prompt: prompt,
-                system: `You are a CLI command generator. Your task is to generate shell commands that accomplish what the user requests in plain English.
+const systemPrompt = `You are a CLI command generator. Your task is to generate shell commands that accomplish what the user requests in plain English.
 
 For each command you generate:
 1. Provide the command itself
@@ -65,12 +38,32 @@ flag1    brief description of what this flag does
 flag2    brief description of what this flag does
 
 Make sure to use newlines to separate the command and the explanation, as well as every flag and option.
-For complex multi-step pipelines, make sure to include a backslash \ and newlines to separate the commands.
+For complex multi-step pipelines, make sure to include a backslash \\ and newlines to separate the commands.
 
-Be concise but thorough in your explanations.`,
-            })
+Be concise but thorough in your explanations.`;
+
+const command = Command.make("ais", { longtext }, ({ longtext }) => {
+    return Effect.gen(function* () {
+        const ai = yield* AI;
+
+        // Only read stdin if there's piped input (not a TTY)
+        const piped = yield* Effect.promise(() =>
+            process.stdin.isTTY ? Promise.resolve("") : Bun.stdin.text()
         );
-        const parsed = yield* Schema.decodeUnknown(outputSchema)(result.object);
+        yield* Effect.logDebug(`piped: ${piped}`);
+
+        if (longtext.length === 0 && !piped) {
+            yield* Effect.logError(chalk.red("No prompt provided"));
+            process.exit(1);
+        }
+        yield* Effect.logDebug(`longtext: ${longtext.join(" ")}`);
+
+        const prompt = longtext.join(" ") + (piped ? `\n\n${piped}` : "");
+
+        const parsed = yield* ai.generateObject(prompt, outputSchema, {
+            system: systemPrompt,
+            schemaName: "command",
+        });
 
         console.log(chalk.blue(boxen(parsed.command, { title: "Command" })));
         console.log(boxen(parsed.explanation, { title: "Explanation" }));
@@ -120,11 +113,14 @@ const cli = Command.run(command, {
     summary: Span.text("Generate commands using AI."),
 });
 
+// AI layer with specific model
+const AILayer = makeAI("gpt51Codex").pipe(Layer.provide(CopilotAuth.Default));
+
 // Prepare and run the CLI application
 cli(process.argv).pipe(
     Effect.provide(
         Layer.mergeAll(
-            Copilot.Default,
+            AILayer,
             SelectInput.Default,
             BunContext.layer,
             Logger.pretty

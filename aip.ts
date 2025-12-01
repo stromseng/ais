@@ -1,13 +1,10 @@
-import { Effect, Schema, Layer, Logger, LogLevel, JSONSchema } from "effect";
+import { Effect, Layer, Logger, LogLevel } from "effect";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Command, Args, Span } from "@effect/cli";
-import { Copilot } from "./src/copilot";
 import { SelectInput } from "./src/selectInput";
 import chalk from "chalk";
-import { generateObject, generateText, jsonSchema } from "ai";
-import { createCopilotProvider } from "./src/copilot-provider";
-import boxen from "boxen";
-import { MODEL_STRINGS } from "./src/utils";
+import { AI, make as makeAI } from "./src/ai";
+import { CopilotAuth } from "./src/copilotAuth";
 
 // Define a text argument
 const longtext = Args.text({ name: "prompt" }).pipe(Args.repeated);
@@ -28,18 +25,10 @@ const command = Command.make("aip", { longtext }, ({ longtext }) => {
 
         const prompt = longtext.join(" ") + (piped ? `\n\n${piped}` : "");
 
-        const copilot = yield* Copilot;
-        const provider = createCopilotProvider(copilot);
+        const ai = yield* AI;
+        const result = yield* ai.generateText(prompt);
 
-        const result = yield* Effect.promise(() =>
-            generateText({
-                model: provider.chat(MODEL_STRINGS.free.gpt41),
-                prompt: prompt,
-            })
-        );
-        const parsed = result.text;
-
-        console.log(parsed);
+        console.log(result);
     });
 });
 
@@ -50,11 +39,14 @@ const cli = Command.run(command, {
     summary: Span.text("Prompt AI."),
 });
 
+// AI layer with specific model
+const AILayer = makeAI("gpt51").pipe(Layer.provide(CopilotAuth.Default));
+
 // Prepare and run the CLI application
 cli(process.argv).pipe(
     Effect.provide(
         Layer.mergeAll(
-            Copilot.Default,
+            AILayer,
             SelectInput.Default,
             BunContext.layer,
             Logger.pretty
