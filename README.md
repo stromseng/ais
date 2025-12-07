@@ -2,6 +2,10 @@
 
 Two AI CLI tools: `ais` (AI Suggest) and `aip` (AI Prompt).
 
+> [!WARNING]
+> This is for my own personal use and learning, currently limited to calling the GitHub Copilot API as I have a free education pack.
+
+
 ## `ais` - AI Suggest
 
 Describe what you want in plain English, get a shell command back. Execute it, copy it, or bail.
