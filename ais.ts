@@ -2,6 +2,7 @@ import { Effect, Schema, Layer, Logger, LogLevel, Console } from "effect";
 import { BunContext, BunRuntime } from "@effect/platform-bun";
 import { Command, Args, Span } from "@effect/cli";
 import { SelectInput } from "./src/selectInput";
+import { TextInput } from "./src/textInput";
 import chalk from "chalk";
 import boxen from "boxen";
 import { AI, make as makeAI } from "./src/ai";
@@ -20,7 +21,7 @@ const outputSchema = Schema.Struct({
     }),
 });
 
-type Action = "execute" | "copy" | "cancel";
+type Action = "execute" | "edit" | "copy" | "cancel";
 
 const systemPrompt = `You are a CLI command generator. Your task is to generate shell commands that accomplish what the user requests in plain English.
 
@@ -74,9 +75,11 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
         yield* Console.log("Choose an action:");
 
         const selectInput = yield* SelectInput;
+        const textInput = yield* TextInput;
 
         const items: { label: string; value: Action }[] = [
             { label: "Execute", value: "execute" },
+            { label: "Edit and execute ", value: "edit" },
             { label: "Copy", value: "copy" },
             { label: "Cancel", value: "cancel" },
         ];
@@ -87,6 +90,20 @@ const command = Command.make("ais", { longtext }, ({ longtext }) => {
             case "execute": {
                 yield* Console.log(chalk.green("Executing command..."));
                 const proc = Bun.spawnSync(["sh", "-c", parsed.command], {
+                    stdin: "inherit",
+                    stdout: "inherit",
+                    stderr: "inherit",
+                });
+                process.exit(proc.exitCode ?? 0);
+            }
+            case "edit": {
+                const edited = yield* textInput.input({
+                    message: "Edit command:",
+                    default: parsed.command,
+                    prefill: "editable",
+                });
+                yield* Console.log(chalk.green("Executing edited command..."));
+                const proc = Bun.spawnSync(["sh", "-c", edited], {
                     stdin: "inherit",
                     stdout: "inherit",
                     stderr: "inherit",
@@ -126,6 +143,7 @@ cli(process.argv).pipe(
         Layer.mergeAll(
             AILayer,
             SelectInput.Default,
+            TextInput.Default,
             BunContext.layer,
             Logger.pretty
         )

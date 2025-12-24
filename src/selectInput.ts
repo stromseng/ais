@@ -15,15 +15,18 @@ export interface SelectItem<T extends string = string> {
     value: T;
 }
 
+// Use /dev/tty for input when stdin might be piped
+// Must use tty.ReadStream for proper raw mode support
+export const getTtyInput = () =>
+    process.stdin.isTTY
+        ? process.stdin
+        : new tty.ReadStream(fs.openSync("/dev/tty", "r"));
+
 export class SelectInput extends Effect.Service<SelectInput>()(
     "ais/SelectInput",
     {
         effect: Effect.gen(function* () {
-            // Use /dev/tty for input when stdin might be piped
-            // Must use tty.ReadStream for proper raw mode support
-            const ttyInput = process.stdin.isTTY
-                ? process.stdin
-                : new tty.ReadStream(fs.openSync("/dev/tty", "r"));
+            const ttyInput = getTtyInput();
 
             return {
                 select: <T extends string>(
