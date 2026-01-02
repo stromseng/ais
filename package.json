@@ -5,11 +5,12 @@
     "private": true,
     "bin": {
         "ais": "./dist/ais",
-        "aip": "./dist/aip"
+        "aip": "./dist/aip",
+        "aic": "./dist/aic"
     },
     "scripts": {
         "prepare": "effect-language-service patch",
-        "build": "bun build './ais.ts' --target node --compile --outfile dist/ais && bun build './aip.ts' --target node --compile --outfile dist/aip",
+        "build": "bun build './ais.ts' --target node --compile --outfile dist/ais && bun build './aip.ts' --target node --compile --outfile dist/aip && bun build './aic.ts' --target node --compile --outfile dist/aic",
         "link": "bun link",
         "switch": "bun run build && bun run link"
     },
